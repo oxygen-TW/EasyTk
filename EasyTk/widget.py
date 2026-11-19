@@ -147,7 +147,11 @@ class ScrollableTreeView(ttk.Treeview):
 
         super().__init__(parent, **kwargs)
         self.configure(show="headings")
-        
+
+        self.natsort_key = natsort_keygen(alg=ns.IGNORECASE | ns.LOWERCASEFIRST | ns.GROUPLETTERS | ns.NANLAST)
+        self._sort_column: Optional[str] = None
+        self._sort_reverse: bool = False
+
         if orient not in ["vertical", "horizontal", "both"]:
             raise ValueError("orient must be 'vertical', 'horizontal', or 'both'")
         
@@ -164,7 +168,16 @@ class ScrollableTreeView(ttk.Treeview):
     def set_header(self, header: list):
         self["columns"] = header
         for col in header:
-            self.heading(col, text=col)
+            self.heading(col, text=col, command=lambda c=col: self._sort_by_column(c))
+
+    def _sort_by_column(self, col: str) -> None:
+        reverse = not self._sort_reverse if col == self._sort_column else False
+        items = [(self.set(item, col), item) for item in self.get_children("")]
+        items.sort(key=lambda pair: self.natsort_key(pair[0]), reverse=reverse)
+        for index, (_, item) in enumerate(items):
+            self.move(item, "", index)
+        self._sort_column = col
+        self._sort_reverse = reverse
 
     def load_csv(self, csv_file: str) -> None:
         with open(csv_file, "r") as f:
@@ -297,17 +310,14 @@ if __name__ == "__main__":
     root.title("Better Entry Demo")
     root.geometry("400x400")
 
-    #Test EnhancedTableView
-    tree = EnhancedTableView(root, orient="both", show="headings")
+    #Test ScrollableTreeView
+    tree = ScrollableTreeView(root, orient="both")
     tree.pack(expand=True, fill=tk.BOTH)
 
-    df = pd.DataFrame({
-        "Name": ["Alice", "Bob", "Charlie"],
-        "Age": [30, 25, 35],
-        "City": ["New York", "Los Angeles", "Chicago"]
-    })
-    tree.df = df
-    tree.apply_dataframe()
-    tree.insert_row(["David", 28, "San Francisco"], font={"family": "Arial", "size": 10, "weight": "bold"}, foreground="blue")
+    tree.set_header(["Name", "Age", "City"])
+    tree.insert_row(["Alice", "30", "New York"])
+    tree.insert_row(["Bob", "25", "Los Angeles"])
+    tree.insert_row(["Charlie", "35", "Chicago"])
+    tree.insert_row(["David", "28", "San Francisco"], font={"family": "Arial", "size": 10, "weight": "bold"}, foreground="blue")
 
     root.mainloop() 
